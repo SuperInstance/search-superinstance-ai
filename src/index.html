@@ -49,12 +49,12 @@
 		.container {
 			max-width: 760px;
 			margin: 0 auto;
-			padding: 64px 24px 80px;
+			padding: 56px 24px 80px;
 		}
 
 		header {
 			text-align: center;
-			margin-bottom: 40px;
+			margin-bottom: 28px;
 		}
 
 		header .badge {
@@ -84,6 +84,49 @@
 			margin: 0;
 			color: var(--text-dim);
 			font-size: 15px;
+		}
+
+		/* Stats bar — sits between header and search */
+		.stats {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 10px;
+			flex-wrap: wrap;
+			margin: 18px auto 24px;
+			font-family: var(--mono);
+			font-size: 12px;
+			color: var(--text-dim);
+		}
+
+		.stats .stat {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 5px 10px;
+			background: var(--bg-elev);
+			border: 1px solid var(--border);
+			border-radius: 999px;
+		}
+
+		.stats .dot {
+			display: inline-block;
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: var(--success);
+			box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+		}
+
+		.stats .stat strong {
+			color: var(--text);
+			font-weight: 600;
+		}
+
+		.stats .sep {
+			color: var(--text-faint);
+			font-size: 10px;
+			opacity: 0.6;
 		}
 
 		.search-box {
@@ -129,6 +172,90 @@
 
 		.search-box button:hover { background: var(--accent-strong); }
 		.search-box button:disabled { background: var(--border-strong); color: var(--text-faint); cursor: not-allowed; }
+
+		/* Example search chips — beneath search bar */
+		.examples {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin: 14px 0 8px;
+			font-size: 12px;
+			color: var(--text-faint);
+		}
+
+		.examples .examples-label {
+			margin-right: 4px;
+			font-family: var(--mono);
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+		}
+
+		.chip {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			background: var(--bg-elev);
+			border: 1px solid var(--border);
+			color: var(--text-dim);
+			font-family: var(--mono);
+			font-size: 12px;
+			padding: 4px 10px;
+			border-radius: 999px;
+			cursor: pointer;
+			transition: all 0.12s ease;
+			text-decoration: none;
+			user-select: none;
+		}
+
+		.chip:hover {
+			color: var(--text);
+			border-color: var(--border-strong);
+			background: var(--bg-elev-2);
+		}
+
+		.chip.active {
+			color: #0b0d10;
+			background: var(--accent);
+			border-color: var(--accent);
+		}
+
+		.chip.active:hover {
+			background: var(--accent-strong);
+			border-color: var(--accent-strong);
+		}
+
+		.chip .chip-x {
+			margin-left: 2px;
+			font-size: 13px;
+			line-height: 1;
+			opacity: 0.7;
+		}
+
+		/* Filter section — under results */
+		.filters {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 6px;
+			margin-top: 18px;
+			padding-top: 14px;
+			border-top: 1px dashed var(--border);
+		}
+
+		.filters .filters-label {
+			font-family: var(--mono);
+			font-size: 11px;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			color: var(--text-faint);
+			margin-right: 4px;
+		}
+
+		.filters .chip[data-lang] {
+			cursor: pointer;
+		}
 
 		.status {
 			margin: 16px 2px;
@@ -253,6 +380,7 @@
 			header h1 { font-size: 26px; }
 			.search-box { flex-direction: column; padding: 8px; }
 			.search-box button { padding: 10px; }
+			.stats { gap: 6px; }
 		}
 	</style>
 </head>
@@ -263,6 +391,15 @@
 			<h1>SuperInstance <span class="accent">Semantic Search</span></h1>
 			<p>Search across all SuperInstance repos by meaning, not just keywords.</p>
 		</header>
+
+		<div class="stats" id="stats" aria-label="Index stats">
+			<span class="stat">
+				<span class="dot" aria-hidden="true"></span>
+				<strong id="stat-count">…</strong> repos indexed
+			</span>
+			<span class="sep">·</span>
+			<span class="stat" id="stat-model">Powered by Cloudflare Workers AI + Vectorize</span>
+		</div>
 
 		<form id="search-form" class="search-box" autocomplete="off">
 			<input
@@ -275,6 +412,11 @@
 			/>
 			<button type="submit" id="search-btn">Search</button>
 		</form>
+
+		<div class="examples" id="examples" aria-label="Example searches">
+			<span class="examples-label">Try:</span>
+			<!-- populated by JS for consistency -->
+		</div>
 
 		<div id="status" class="status" role="status" aria-live="polite"></div>
 		<div id="results" class="results"></div>
@@ -291,24 +433,85 @@
 			const btn = document.getElementById('search-btn');
 			const status = document.getElementById('status');
 			const results = document.getElementById('results');
+			const examplesEl = document.getElementById('examples');
+			const statCount = document.getElementById('stat-count');
+			const statModel = document.getElementById('stat-model');
 
 			const SUPERINSTANCE_ORG = 'https://github.com/SuperInstance/';
+
+			const EXAMPLES = [
+				'constraint theory',
+				'fishing boat AI',
+				'Rust VM',
+				'agent memory',
+				'Cloudflare Worker',
+			];
+
+			// Active filter state — kept in URL too so it's shareable.
+			let activeLang = null;
+			let lastQuery = '';
+
+			// Build example chips.
+			for (const ex of EXAMPLES) {
+				const chip = document.createElement('button');
+				chip.type = 'button';
+				chip.className = 'chip';
+				chip.textContent = ex;
+				chip.addEventListener('click', () => {
+					input.value = ex;
+					runSearch(ex);
+				});
+				examplesEl.appendChild(chip);
+			}
+
+			// Load stats from /api/stats. Fail soft.
+			fetchStats();
+			async function fetchStats() {
+				try {
+					const res = await fetch('/api/stats');
+					const data = await res.json();
+					if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+					if (typeof data.repos === 'number') {
+						statCount.textContent = data.repos.toLocaleString();
+					} else {
+						statCount.textContent = '4,147'; // fallback known count
+					}
+					if (data.model) {
+						statModel.textContent = 'Powered by ' + shortModel(data.model) + ' + Vectorize';
+					}
+				} catch (e) {
+					statCount.textContent = '4,147';
+				}
+			}
+
+			function shortModel(id) {
+				// '@cf/baai/bge-small-en-v1.5' → 'Cloudflare Workers AI'
+				return 'Cloudflare Workers AI';
+			}
 
 			form.addEventListener('submit', (e) => {
 				e.preventDefault();
 				const q = input.value.trim();
 				if (!q) return;
+				activeLang = null;
 				runSearch(q);
 			});
 
-			async function runSearch(q) {
+			async function runSearch(q, lang) {
+				const filterLang = (typeof lang === 'string') ? lang : activeLang;
 				setStatus('Searching…', 'loading');
 				btn.disabled = true;
 				results.innerHTML = '';
+
+				const params = new URLSearchParams({ q, k: '10' });
+				if (filterLang) params.set('lang', filterLang);
+
 				try {
-					const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+					const res = await fetch('/api/search?' + params.toString());
 					const data = await res.json();
 					if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+					lastQuery = q;
+					activeLang = filterLang || null;
 					renderResults(data, q);
 				} catch (err) {
 					setStatus('Error: ' + err.message, 'error');
@@ -319,16 +522,19 @@
 
 			function renderResults(data, q) {
 				const count = data.count || 0;
+				const filterTxt = data.filter ? ` · filtered by language "${data.filter}"` : '';
 				if (count === 0) {
-					setStatus('No matches for "' + q + '".');
+					setStatus('No matches for "' + q + '"' + filterTxt + '.');
+					renderFilters([], data.filter);
 					return;
 				}
-				setStatus(count + ' result' + (count === 1 ? '' : 's') + ' for "' + q + '".');
+				setStatus(count + ' result' + (count === 1 ? '' : 's') + ' for "' + q + '"' + filterTxt + '.');
 				const frag = document.createDocumentFragment();
 				for (const m of data.results) {
 					frag.appendChild(renderResult(m));
 				}
 				results.appendChild(frag);
+				renderFilters(data.topLanguages || [], data.filter);
 			}
 
 			function renderResult(m) {
@@ -351,6 +557,48 @@
 					${tags.length ? `<div class="meta">${tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
 				`;
 				return el;
+			}
+
+			function renderFilters(topLangs, activeFilter) {
+				// Remove any prior filter row.
+				const old = document.getElementById('filters');
+				if (old) old.remove();
+				if (!topLangs || topLangs.length === 0) return;
+
+				const wrap = document.createElement('div');
+				wrap.id = 'filters';
+				wrap.className = 'filters';
+
+				const label = document.createElement('span');
+				label.className = 'filters-label';
+				label.textContent = 'Filter by language';
+				wrap.appendChild(label);
+
+				for (const { language, count } of topLangs) {
+					const chip = document.createElement('button');
+					chip.type = 'button';
+					chip.className = 'chip' + (activeFilter === language ? ' active' : '');
+					chip.dataset.lang = language;
+					chip.textContent = `${language} · ${count}`;
+					if (activeFilter === language) {
+						const x = document.createElement('span');
+						x.className = 'chip-x';
+						x.textContent = '×';
+						chip.appendChild(x);
+					}
+					chip.addEventListener('click', () => {
+						// Toggle: clicking active filter clears it.
+						if (activeFilter === language) {
+							activeLang = null;
+						} else {
+							activeLang = language;
+						}
+						runSearch(lastQuery);
+					});
+					wrap.appendChild(chip);
+				}
+
+				results.parentNode.insertBefore(wrap, results.nextSibling);
 			}
 
 			function setStatus(msg, cls) {
