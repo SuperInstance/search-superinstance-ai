@@ -1,0 +1,19 @@
+{
+	"name": "search-superinstance-ai",
+	"version": "0.1.0",
+	"description": "Semantic search over SuperInstance GitHub repos — Cloudflare Worker + Vectorize + Workers AI.",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy",
+		"tail": "wrangler tail",
+		"vector:create": "wrangler vectorize create superinstance-repos --dimensions=384 --metric=cosine"
+	},
+	"devDependencies": {
+		"wrangler": "^3.90.0"
+	},
+	"engines": {
+		"node": ">=18"
+	}
+}

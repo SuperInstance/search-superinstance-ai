@@ -1,0 +1,16 @@
+name = "search-superinstance"
+compatibility_date = "2026-07-17"
+main = "src/index.js"
+
+[ai]
+binding = "AI"
+
+[[vectorize]]
+binding = "VECTOR_INDEX"
+index_name = "superinstance-repos"
+
+# Treat .html files as text modules so we can `import` them in the Worker.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
