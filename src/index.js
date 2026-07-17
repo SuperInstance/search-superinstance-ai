@@ -75,7 +75,7 @@ async function handleSearch(url, env) {
 		// number of matches after filtering. Vectorize metadata filters need
 		// properties to be explicitly indexed at insert time, so we filter
 		// client-side (in the Worker) instead.
-		const fetchK = lang ? Math.min(100, topK * 5) : topK;
+		const fetchK = lang ? Math.min(50, topK * 5) : topK; // Vectorize max topK is 50 with returnMetadata
 		const result = await env.VECTOR_INDEX.query(queryVector, {
 			topK: fetchK,
 			returnMetadata: 'all',
